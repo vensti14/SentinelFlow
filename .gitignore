@@ -1,0 +1,17 @@
+﻿# Envs / caches
+.venv/
+venv/
+env/
+ENV/
+.chill/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.pytype/
+# IDE / system
+.vscode/
+.idea/
+.DS_Store
