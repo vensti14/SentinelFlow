@@ -4,6 +4,8 @@ import pandas as pd
 import streamlit as st
 import shap
 import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, precision_recall_curve
+from sklearn.calibration import calibration_curve
 
 from utils import load_credit_data, time_based_split, FEATURE_COLS, TARGET_COL, metrics, psi, kl_divergence
 
@@ -271,6 +273,66 @@ def process_arrived_labels(delay_sec: int):
             changed += 1
     return changed
 
+def plot_roc_pr(y, p):
+    fpr, tpr, _ = roc_curve(y, p)
+    prec, rec, _ = precision_recall_curve(y, p)
+    # ROC
+    fig1, ax1 = plt.subplots()
+    ax1.plot(fpr, tpr, lw=2)
+    ax1.plot([0,1],[0,1], ls="--")
+    ax1.set_xlabel("FPR"); ax1.set_ylabel("TPR"); ax1.set_title("ROC (test)")
+    st.pyplot(fig1)
+    # PR
+    fig2, ax2 = plt.subplots()
+    ax2.plot(rec, prec, lw=2)
+    ax2.set_xlabel("Recall"); ax2.set_ylabel("Precision"); ax2.set_title("PR (test)")
+    st.pyplot(fig2)
+
+def plot_reliability(y, p, n_bins=10):
+    prob_true, prob_pred = calibration_curve(y, p, n_bins=n_bins, strategy="quantile")
+    fig, ax = plt.subplots()
+    ax.plot(prob_pred, prob_true, marker="o")
+    ax.plot([0,1],[0,1], ls="--")
+    ax.set_xlabel("Predicted probability"); ax.set_ylabel("Observed fraud rate")
+    ax.set_title("Reliability diagram (test)")
+    st.pyplot(fig)
+
+def plot_cost_and_review(y, p, fp_cost, fn_cost, band=0.01):
+    import numpy as np
+    ths = np.linspace(0, 1, 201)
+    costs, review_rates = [], []
+    y = np.asarray(y).astype(int); p = np.asarray(p)
+    for t in ths:
+        approve = p < (t - band)
+        block   = p > (t + band)
+        review  = (~approve) & (~block)
+        yhat = block.astype(int)  # treat blocks as predicting fraud
+        fp = ((yhat==1)&(y==0)).sum()
+        fn = ((yhat==0)&(y==1)).sum()
+        costs.append(fp*fp_cost + fn*fn_cost)
+        review_rates.append(review.mean())
+
+    fig1, ax1 = plt.subplots()
+    ax1.plot(ths, costs)
+    ax1.set_xlabel("Threshold"); ax1.set_ylabel("Expected cost")
+    ax1.set_title("Cost vs threshold (test)")
+    st.pyplot(fig1)
+
+    fig2, ax2 = plt.subplots()
+    ax2.plot(ths, review_rates)
+    ax2.set_xlabel("Threshold"); ax2.set_ylabel("Review rate")
+    ax2.set_title(f"Review rate vs threshold (band ±{band:.3f})")
+    st.pyplot(fig2)
+
+def plot_drift_hists(baseline_scores, test_scores):
+    fig, ax = plt.subplots()
+    ax.hist(baseline_scores, bins=30, alpha=0.6, label="baseline (valid)")
+    ax.hist(test_scores, bins=30, alpha=0.6, label="test")
+    ax.set_title("Score distribution: baseline vs test")
+    ax.legend()
+    st.pyplot(fig)
+
+
 # -------- Main flow --------
 if data_file is None:
     st.info("Upload `creditcard.csv` to start. Columns required: Time, V1..V28, Amount, Class.")
@@ -279,6 +341,27 @@ else:
     model, novelty, baseline, artifacts = load_or_train(df, retrain)
     st.success("Models ready.")
     st.write("Validation metrics:", artifacts["metrics_valid"])
+    # Compute validation/test predictions for charts
+    splits = time_based_split(len(df))
+    X_valid = df.iloc[splits.valid_idx][FEATURE_COLS].values
+    y_valid = df.iloc[splits.valid_idx][TARGET_COL].values
+    X_test  = df.iloc[splits.test_idx][FEATURE_COLS].values
+    y_test  = df.iloc[splits.test_idx][TARGET_COL].values
+    p_valid = model.predict_proba(X_valid)[:,1]
+    p_test  = model.predict_proba(X_test)[:,1]
+
+with st.expander("📈 Metrics & Charts", expanded=False):
+    st.caption("Validation metrics above; charts here use the test slice.")
+    plot_roc_pr(y_test, p_test)
+    plot_reliability(y_test, p_test, n_bins=10)
+    # Use current sidebar FP/FN and review band values
+    plot_cost_and_review(y_test, p_test, fp_cost, fn_cost, band=review_band)
+    # Optional drift histogram (baseline saved at train time)
+    try:
+        plot_drift_hists(baseline.get("score_valid", []), list(p_test))
+    except Exception:
+        pass
+
 
     # auto threshold from validation
     splits = time_based_split(len(df))
