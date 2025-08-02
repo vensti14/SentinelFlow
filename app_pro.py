@@ -257,27 +257,31 @@ def process_arrived_labels(delay_sec: int):
     return changed
 
 # ---- Plot helpers (defined before use) ----
-def plot_roc_pr(y, p):
+def plot_roc_pr(y, p, size=(5, 3)):
     fpr, tpr, _ = roc_curve(y, p)
     prec, rec, _ = precision_recall_curve(y, p)
-    fig1, ax1 = plt.subplots()
-    ax1.plot(fpr, tpr, lw=2); ax1.plot([0,1],[0,1], ls="--")
+
+    fig1, ax1 = plt.subplots(figsize=size)
+    ax1.plot(fpr, tpr, lw=2)
+    ax1.plot([0,1],[0,1], ls="--")
     ax1.set_xlabel("FPR"); ax1.set_ylabel("TPR"); ax1.set_title("ROC (test)")
-    st.pyplot(fig1)
-    fig2, ax2 = plt.subplots()
+    st.pyplot(fig1, use_container_width=True)
+
+    fig2, ax2 = plt.subplots(figsize=size)
     ax2.plot(rec, prec, lw=2)
     ax2.set_xlabel("Recall"); ax2.set_ylabel("Precision"); ax2.set_title("PR (test)")
-    st.pyplot(fig2)
+    st.pyplot(fig2, use_container_width=True)
 
-def plot_reliability(y, p, n_bins=10):
+def plot_reliability(y, p, n_bins=10, size=(5, 3)):
     prob_true, prob_pred = calibration_curve(y, p, n_bins=n_bins, strategy="quantile")
-    fig, ax = plt.subplots()
-    ax.plot(prob_pred, prob_true, marker="o"); ax.plot([0,1],[0,1], ls="--")
+    fig, ax = plt.subplots(figsize=size)
+    ax.plot(prob_pred, prob_true, marker="o")
+    ax.plot([0,1],[0,1], ls="--")
     ax.set_xlabel("Predicted probability"); ax.set_ylabel("Observed fraud rate")
-    ax.set_title("Reliability diagram (test)")
-    st.pyplot(fig)
+    ax.set_title("Reliability (test)")
+    st.pyplot(fig, use_container_width=True)
 
-def plot_cost_and_review(y, p, fp_cost, fn_cost, band=0.01):
+def plot_cost_and_review(y, p, fp_cost, fn_cost, band=0.01, size=(5, 3)):
     ths = np.linspace(0, 1, 201)
     costs, review_rates = [], []
     y = np.asarray(y).astype(int); p = np.asarray(p)
@@ -290,26 +294,29 @@ def plot_cost_and_review(y, p, fp_cost, fn_cost, band=0.01):
         fn = ((yhat==0)&(y==1)).sum()
         costs.append(fp*fp_cost + fn*fn_cost)
         review_rates.append(review.mean())
-    fig1, ax1 = plt.subplots()
+
+    fig1, ax1 = plt.subplots(figsize=size)
     ax1.plot(ths, costs)
     ax1.set_xlabel("Threshold"); ax1.set_ylabel("Expected cost")
     ax1.set_title("Cost vs threshold (test)")
-    st.pyplot(fig1)
-    fig2, ax2 = plt.subplots()
+    st.pyplot(fig1, use_container_width=True)
+
+    fig2, ax2 = plt.subplots(figsize=size)
     ax2.plot(ths, review_rates)
     ax2.set_xlabel("Threshold"); ax2.set_ylabel("Review rate")
     ax2.set_title(f"Review rate vs threshold (band ±{band:.3f})")
-    st.pyplot(fig2)
+    st.pyplot(fig2, use_container_width=True)
 
-def plot_drift_hists(baseline_scores, test_scores):
+def plot_drift_hists(baseline_scores, test_scores, size=(5, 3)):
     if len(baseline_scores)==0 or len(test_scores)==0:
         return
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=size)
     ax.hist(baseline_scores, bins=30, alpha=0.6, label="baseline (valid)")
     ax.hist(test_scores, bins=30, alpha=0.6, label="test")
     ax.set_title("Score distribution: baseline vs test")
     ax.legend()
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
+
 
 # -------- Main flow --------
 if data_file is None:
@@ -331,12 +338,18 @@ else:
     with st.expander("📈 Metrics & Charts", expanded=False):
         st.caption("Charts use the test slice.")
         try:
-            plot_roc_pr(y_test, p_test)
-            plot_reliability(y_test, p_test, n_bins=10)
-            plot_cost_and_review(y_test, p_test, fp_cost, fn_cost, band=review_band)
-            plot_drift_hists(baseline.get("score_valid", []), list(p_test))
+            col1, col2 = st.columns(2)
+
+            with col1:
+                plot_roc_pr(y_test, p_test, size=(5, 3))
+                plot_reliability(y_test, p_test, n_bins=10, size=(5, 3))
+
+            with col2:
+                plot_cost_and_review(y_test, p_test, fp_cost, fn_cost, band=review_band, size=(5, 3))
+                plot_drift_hists(baseline.get("score_valid", []), list(p_test), size=(5, 3))
         except Exception as e:
             st.info(f"Could not render charts: {e}")
+
 
     # Auto threshold from costs
     auto_thr, _ = compute_cost_threshold(y_valid, p_valid, fp_cost, fn_cost)
