@@ -11,7 +11,7 @@ st.set_page_config(page_title="SentinelFlow – Trustworthy Risk Scoring", layou
 st.title("💳 SentinelFlow – Trustworthy Risk Scoring")
 st.caption("Calibrated probabilities • uncertainty-aware review • transparent drivers • drift & novelty monitoring.")
 
-# -------- Sidebar --------
+# -------- Sidebar -------
 with st.sidebar:
     st.header("1) Data")
     data_file = st.file_uploader("Upload creditcard.csv", type=["csv"])
@@ -137,7 +137,7 @@ def stream(df: pd.DataFrame, model, novelty_model, baseline, threshold: float, r
     # novelty score: IsolationForest gives -1 (anomaly) or 1 (normal) via predict; decision_function for score
     novelty_score = None
     if novelty_model is not None:
-        novelty_score = novelty_model.decision_function(X_test)  # higher = more normal; we invert for "novelty"
+        novelty_score = novelty_model.decision_function(X_test)  
         novelty_score = -novelty_score
 
     explainer = build_shap_explainer(model)
