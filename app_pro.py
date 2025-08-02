@@ -126,7 +126,7 @@ def init_session():
     if "decisions" not in st.session_state:
         st.session_state["decisions"] = []
 
-def stream(df: pd.DataFrame, model, novelty_model, baseline, threshold: float, review_band: float, speed: int):
+def stream(df: pd.DataFrame, model, artifacts, novelty_model, baseline, threshold: float, review_band: float, speed: int):
     init_session()
     splits = time_based_split(len(df))
     test_df = df.iloc[splits.test_idx].copy()
@@ -214,8 +214,8 @@ def stream(df: pd.DataFrame, model, novelty_model, baseline, threshold: float, r
                 st.write(stats)
                 st.caption("tp: true positives, fp: false positives, tn: true negatives, fn: false negatives")
             with c3:
-                st.subheader("Test set metrics (static)")
-                st.json({"roc_auc": "see train metrics", "note": "demo stream"})
+                st.subheader("Test set metrics ")
+                st.json(artifacts.get("metrics_test", {"note": "not available"}))
         pb.progress(int(processed * 100 / total))
 
         # Explanations
@@ -294,7 +294,7 @@ else:
 
     with tab1:
         if start_btn:
-            stream(df, model, novelty, baseline, thr, review_band, speed)
+            stream(df, model, artifacts, novelty, baseline, thr, review_band, speed)
 
     with tab2:
         show_review_queue()
