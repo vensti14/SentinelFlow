@@ -256,7 +256,7 @@ def process_arrived_labels(delay_sec: int):
             changed += 1
     return changed
 
-# ---- Plot helpers (defined before use) ----
+# ---- Plot helpers ----
 def plot_roc_pr(y, p, size=(5, 3)):
     fpr, tpr, _ = roc_curve(y, p)
     prec, rec, _ = precision_recall_curve(y, p)
